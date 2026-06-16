@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ユドナリウム ログ整形ツール（アイコン一括設定対応版）</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f4f6f9;
+            --text-color: #333;
+            --border-color: #ddd;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px;
+        }
+        .container {
+            max-width: 800px; margin: 0 auto; background: #fff; padding: 30px;
+            border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        h1 {
+            font-size: 22px; margin-top: 0; border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px; color: var(--primary-color);
+        }
+        .upload-section {
+            margin-bottom: 20px; padding: 30px 20px; border: 2px dashed var(--border-color);
+            border-radius: 8px; text-align: center; background-color: #fafbfc;
+        }
+        .upload-section p { margin-top: 0; color: #666; font-size: 14px; }
+        
+        .controls { display: none; margin-bottom: 20px; flex-direction: column; gap: 15px; }
+        .checkbox-group {
+            display: flex; flex-wrap: wrap; gap: 10px; padding: 15px;
+            background: #f8fafc; border: 1px solid var(--border-color); border-radius: 6px;
+        }
+        .checkbox-group-title { width: 100%; font-weight: bold; font-size: 14px; color: #4a5568; margin-bottom: 5px; }
+        
+        .tab-item {
+            display: flex; align-items: center; gap: 8px;
+            background: #fff; padding: 6px 12px; border: 1px solid #cbd5e0;
+            border-radius: 20px; font-size: 14px; transition: all 0.2s;
+        }
+        .tab-item:hover { background: #e2e8f0; }
+        .tab-item input[type="color"] {
+            border: none; width: 22px; height: 22px; padding: 0;
+            cursor: pointer; border-radius: 50%; overflow: hidden; background: transparent;
+        }
+        .tab-item input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        .tab-item input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        .tab-item label { cursor: pointer; display: flex; align-items: center; gap: 5px; user-select: none; }
+        
+        .controls-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .toggles-wrapper { display: flex; gap: 10px; flex-wrap: wrap; }
+        .toggle-label {
+            cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px;
+            background: #f0f4f8; padding: 8px 12px; border-radius: 4px; border: 1px solid #cbd5e0;
+            font-weight: bold; color: #4a5568; transition: background 0.2s;
+        }
+        .toggle-label:hover { background: #e2e8f0; }
+
+        .action-buttons { display: flex; gap: 10px; }
+        button {
+            padding: 10px 15px; font-size: 14px; color: #fff; border: none;
+            border-radius: 4px; cursor: pointer; font-weight: bold;
+        }
+        .btn-copy { background-color: #6c757d; }
+        .btn-copy:hover { background-color: #5a6268; }
+        .btn-download { background-color: var(--primary-color); }
+        .btn-download:hover { background-color: #357abd; }
+        
+        /* --- 画面切り替えタブUI --- */
+        #workspace { display: none; }
+        .view-tabs {
+            display: flex; gap: 5px; margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        .view-tab-btn {
+            background: #f0f4f8; color: #666; border-radius: 6px 6px 0 0;
+            padding: 12px 24px; font-size: 15px; transition: all 0.2s;
+        }
+        .view-tab-btn:hover { background: #e2e8f0; color: var(--primary-color); }
+        .view-tab-btn.active { background: var(--primary-color); color: #fff; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .log-display {
+            border: 1px solid var(--border-color); border-radius: 4px; padding: 20px;
+            max-height: 700px; overflow-y: auto; background: #fff;
+        }
+
+        /* --- アイコン一覧グリッドUI --- */
+        .icon-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 15px; padding: 10px 0;
+        }
+        .icon-card {
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 8px;
+            padding: 15px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: transform 0.2s;
+        }
+        .icon-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        .icon-card .message-icon { margin: 0 0 10px 0; width: 64px; height: 64px; }
+        .icon-card-name { font-size: 12px; font-weight: bold; color: #4a5568; word-break: break-word; line-height: 1.3; }
+
+        /* --- ログ表示用デザイン --- */
+        .tab-legend {
+            display: none; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; padding: 12px 15px;
+            background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 4px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #4a5568; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+        
+        .use-legend .tab-legend { display: flex; }
+        .use-legend .tab-badge { display: none; }
+
+        .message {
+            display: flex; align-items: flex-start; margin-bottom: 16px;
+            line-height: 1.6; position: relative; padding-right: 40px;
+            padding-left: 10px; border-radius: 2px;
+        }
+        
+        .message-timestamp { display: none; position: absolute; top: 2px; right: 35px; font-size: 0.75em; color: #a0aec0; pointer-events: none; }
+        .show-timestamps .message-timestamp { display: block; }
+
+        .message-icon {
+            width: 44px; height: 44px; border-radius: 50%; overflow: hidden;
+            margin-right: 12px; background-color: #e2e8f0; flex-shrink: 0;
+            border: 1px solid #cbd5e0; position: relative;
+        }
+        .icon-inner {
+            width: 100%; height: 100%; background-size: cover; background-repeat: no-repeat;
+            background-position: var(--pos-x, 50%) var(--pos-y, 50%);
+            transform-origin: var(--pos-x, 50%) var(--pos-y, 50%); transform: scale(var(--zoom, 1));
+        }
+        .icon-default { background-image: url('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); }
+        
+        .clickable-icon { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .clickable-icon:hover { box-shadow: 0 0 0 2px var(--primary-color); transform: scale(1.05); }
+        
+        .message-content { flex-grow: 1; }
+        
+        .delete-btn {
+            position: absolute; right: 0; top: 0; background: none; border: none;
+            font-size: 18px; color: #a0aec0; cursor: pointer; opacity: 0;
+            transition: opacity 0.2s, color 0.2s; padding: 5px;
+        }
+        .message:hover .delete-btn { opacity: 1; }
+        .delete-btn:hover { color: #e53e3e; }
+
+        .name-span, .message-body { border-radius: 3px; transition: background-color 0.2s; }
+        .name-span:hover, .message-body:hover { background-color: #f7fafc; cursor: text; }
+        [contenteditable="true"] { outline: 2px dashed var(--primary-color); background-color: #fffbe6 !important; padding: 2px 4px; margin: -2px -4px; }
+
+        .message-header { font-weight: bold; font-size: 0.95em; margin-bottom: 2px; display: flex; align-items: center; flex-wrap: wrap; }
+        
+        .tab-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; color: #fff; font-size: 0.75em; margin-right: 8px; font-weight: normal; text-shadow: 0 1px 1px rgba(0,0,0,0.2); }
+        .message-body { white-space: pre-wrap; color: #222; }
+        
+        .system-message { background-color: #f0f4f8; padding: 10px 12px; margin-left: 56px; border-radius: 4px; }
+        .system-message .message-icon { display: none; }
+        .system-message .message-header { color: #718096 !important; font-size: 0.85em; }
+        .system-message .message-body { color: #4a5568; font-size: 0.9em; }
+
+        /* 位置調整用モーダル */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #fff; padding: 25px; border-radius: 8px; width: 320px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2); text-align: center;
+        }
+        .modal-content h3 { margin-top: 0; margin-bottom: 15px; font-size: 16px; }
+        .modal-preview-wrapper { margin-bottom: 20px; display: flex; justify-content: center; }
+        .preview-icon-wrapper { width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2px solid var(--primary-color); background-color: #e2e8f0; }
+        .slider-group { margin-bottom: 12px; text-align: left; }
+        .slider-group label { display: block; font-size: 13px; margin-bottom: 5px; color: #555; }
+        .slider-group input[type="range"] { width: 100%; cursor: pointer; }
+        .modal-close-btn { width: 100%; background-color: var(--primary-color); margin-top: 15px; }
+    </style>
+    <style id="dynamic-image-styles"></style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎲 ユドナリウム ログ整形ツール</h1>
+    
+    <div class="upload-section">
+        <p>ユドナリウムの「部屋データ（.zip）」を選択してください</p>
+        <input type="file" id="zipInput" accept=".zip" />
+        <div id="loadingMsg" style="display:none; color: var(--primary-color); margin-top: 10px; font-weight: bold;">
+            データを解析・最適化しています...
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div class="view-tabs">
+            <button class="view-tab-btn active" data-target="logViewTab">📝 ログ編集</button>
+            <button class="view-tab-btn" data-target="iconViewTab">🖼️ アイコン一括設定</button>
+        </div>
+
+        <div id="logViewTab" class="tab-content active">
+            <div class="controls" id="controls">
+                <div class="checkbox-group" id="tabCheckboxes"></div>
+                <div class="controls-toolbar">
+                    <div class="toggles-wrapper">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="toggleTimestamp"> ⏱️ 発言時間を表示する
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="toggleLegend"> 🏷️ バッジを消して上部対応表にする
+                        </label>
+                    </div>
+                    <div class="action-buttons">
+                        <button id="copyBtn" class="btn-copy">テキストをコピー</button>
+                        <button id="downloadBtn" class="btn-download">HTMLを出力（保存）</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="log-display">
+                <div style="color: #718096; font-size: 0.9em; margin-bottom: 15px;">
+                    💡 <strong>ヒント:</strong> 出力されたHTMLでは、アイコンをクリックすると<strong>見切れていない元画像</strong>が表示されます。<br>
+                    💡 <strong>ヒント:</strong> 名前や本文をダブルクリックで直接編集 / 右端の🗑️で発言を削除できます。
+                </div>
+                <div id="logContent">
+                    <div style="padding: 20px; text-align: center; color: #a0aec0;">表示するタブにチェックを入れてください。</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="iconViewTab" class="tab-content">
+            <div class="log-display" style="display: block;">
+                <div style="color: #718096; font-size: 0.9em; margin-bottom: 15px;">
+                    💡 <strong>ヒント:</strong> 画像をクリックすると、顔の表示位置やズームを一括で調整できます。（ここで調整した内容はログ全体に即座に反映されます）
+                </div>
+                <div class="icon-grid" id="iconGrid"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="imageModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>アイコン表示の調整</h3>
+        <div class="modal-preview-wrapper">
+            <div class="preview-icon-wrapper"><div id="modalPreviewIcon" class="icon-inner"></div></div>
+        </div>
+        <div class="slider-group">
+            <label>拡大 (Zoom): <span id="valZ">1.0</span>x</label>
+            <input type="range" id="sliderZ" min="1" max="4" step="0.1" value="1">
+        </div>
+        <div class="slider-group">
+            <label>左右 (X軸): <span id="valX">50</span>%</label>
+            <input type="range" id="sliderX" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="slider-group">
+            <label>上下 (Y軸): <span id="valY">50</span>%</label>
+            <input type="range" id="sliderY" min="0" max="100" step="1" value="50">
+        </div>
+        <button id="closeModalBtn" class="modal-close-btn">決定</button>
+    </div>
+</div>
+
+<script>
+    let currentParsedTabs = {};
+    let imageMap = {}; 
+    let imagePositions = {};
+    let iconToNameMap = {}; // 画像IDとキャラクター名の紐付け用
+    let editingImageId = null;
+    let tabIndexMap = {}; 
+    
+    const defaultPalette = ['#4a90e2', '#e53e3e', '#38a169', '#d69e2e', '#805ad5', '#ec4899', '#319795', '#dd6b20', '#718096'];
+
+    // タブ切り替えロジック
+    document.querySelectorAll('.view-tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            e.target.classList.add('active');
+            document.getElementById(e.target.dataset.target).classList.add('active');
+        });
+    });
+
+    document.getElementById('zipInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('loadingMsg').style.display = 'block';
+        document.getElementById('workspace').style.display = 'none';
+
+        try {
+            const zip = await JSZip.loadAsync(file);
+            let chatXmlString = '';
+            imageMap = {};
+            imagePositions = {};
+            const filePromises = [];
+            
+            for (const [filename, zipEntry] of Object.entries(zip.files)) {
+                if (zipEntry.dir) continue;
+                if (filename.endsWith('chat.xml')) {
+                    filePromises.push(zipEntry.async('string').then(data => { chatXmlString = data; }));
+                } else if (filename.match(/\.(png|jpg|jpeg|gif|webp)$/i)) {
+                    filePromises.push(zipEntry.async('base64').then(base64Data => {
+                        const identifier = filename.split('/').pop().split('.')[0];
+                        const ext = filename.split('.').pop().toLowerCase();
+                        const mime = ext === 'jpg' ? 'jpeg' : ext;
+                        imageMap[identifier] = `data:image/${mime};base64,${base64Data}`;
+                        imagePositions[identifier] = { z: 1, x: 50, y: 50 };
+                    }));
+                }
+            }
+
+            await Promise.all(filePromises);
+            if (!chatXmlString) { alert('ZIP内に chat.xml が見つかりませんでした。'); return; }
+
+            updateImageStyles();
+            parseChatXml(chatXmlString);
+            document.getElementById('workspace').style.display = 'block';
+            
+        } catch (error) {
+            console.error(error); alert('ファイルの読み込みに失敗しました。');
+        } finally {
+            document.getElementById('loadingMsg').style.display = 'none';
+        }
+    });
+
+    function updateImageStyles() {
+        let cssString = '';
+        for (const [id, url] of Object.entries(imageMap)) {
+            const pos = imagePositions[id];
+            cssString += `.img-${id} { background-image: url('${url}'); --zoom: ${pos.z}; --pos-x: ${pos.x}%; --pos-y: ${pos.y}%; }\n`;
+        }
+        document.getElementById('dynamic-image-styles').textContent = cssString;
+    }
+
+    function parseChatXml(xmlString) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+        const tabs = xmlDoc.querySelectorAll('chat-tab');
+        
+        currentParsedTabs = {};
+        tabIndexMap = {};
+        iconToNameMap = {}; // アイコンと名前の紐付けをリセット
+        
+        const container = document.getElementById('tabCheckboxes');
+        container.innerHTML = '<div class="checkbox-group-title">表示するタブを選択（複数選択で時系列に結合されます）:</div>';
+
+        let tIndex = 0;
+        tabs.forEach(tab => {
+            const tabName = tab.getAttribute('name');
+            tabIndexMap[tabName] = tIndex;
+            
+            const defaultColor = defaultPalette[tIndex % defaultPalette.length];
+            document.documentElement.style.setProperty(`--tab-color-${tIndex}`, defaultColor);
+
+            const chats = Array.from(tab.querySelectorAll('chat'));
+            chats.forEach(c => {
+                c.setAttribute('data-tab-name', tabName);
+                // アイコンIDとキャラクター名を収集（設定タブ用）
+                const imgId = c.getAttribute('imageIdentifier');
+                const charName = c.getAttribute('name');
+                if (imgId && charName && !iconToNameMap[imgId]) {
+                    // SystemのBCDice等の名前は除外したいが、通常imgIdを持たないのでOK
+                    iconToNameMap[imgId] = charName;
+                }
+            });
+            currentParsedTabs[tabName] = chats;
+
+            const tabItem = document.createElement('div');
+            tabItem.className = 'tab-item';
+
+            const colorPicker = document.createElement('input');
+            colorPicker.type = 'color';
+            colorPicker.value = defaultColor;
+            colorPicker.title = 'タブの色を変更';
+            colorPicker.addEventListener('input', (e) => {
+                document.documentElement.style.setProperty(`--tab-color-${tabIndexMap[tabName]}`, e.target.value);
+            });
+
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = tabName;
+            checkbox.addEventListener('change', updateDisplay);
+
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(` ${tabName} (${chats.length})`));
+
+            tabItem.appendChild(colorPicker);
+            tabItem.appendChild(label);
+            container.appendChild(tabItem);
+
+            tIndex++;
+        });
+        
+        document.getElementById('controls').style.display = 'flex';
+        renderIconGrid(); // アイコン一覧画面を生成
+    }
+
+    // アイコン一括設定グリッドの描画
+    function renderIconGrid() {
+        const grid = document.getElementById('iconGrid');
+        grid.innerHTML = '';
+        
+        // ZIPから読み込めたすべての画像をカード化
+        for (const id of Object.keys(imageMap)) {
+            const card = document.createElement('div');
+            card.className = 'icon-card';
+            
+            const iconWrapper = document.createElement('div');
+            iconWrapper.className = 'message-icon clickable-icon';
+            iconWrapper.title = 'クリックで表示位置を調整';
+            iconWrapper.addEventListener('click', () => openImageModal(id));
+            
+            const iconInner = document.createElement('div');
+            iconInner.className = `icon-inner img-${id}`;
+            iconWrapper.appendChild(iconInner);
+            
+            const nameLabel = document.createElement('div');
+            nameLabel.className = 'icon-card-name';
+            nameLabel.textContent = iconToNameMap[id] || '名前不明';
+            
+            card.appendChild(iconWrapper);
+            card.appendChild(nameLabel);
+            grid.appendChild(card);
+        }
+    }
+
+    // 時間表示・凡例表示トグル
+    document.getElementById('toggleTimestamp').addEventListener('change', (e) => {
+        const logContent = document.getElementById('logContent');
+        if(e.target.checked) logContent.classList.add('show-timestamps');
+        else logContent.classList.remove('show-timestamps');
+    });
+
+    document.getElementById('toggleLegend').addEventListener('change', (e) => {
+        const logContent = document.getElementById('logContent');
+        if(e.target.checked) logContent.classList.add('use-legend');
+        else logContent.classList.remove('use-legend');
+    });
+
+    function updateDisplay() {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        if (checkedBoxes.length === 0) {
+            document.getElementById('logContent').innerHTML = '<div style="padding: 20px; text-align: center; color: #a0aec0;">表示するタブにチェックを入れてください。</div>';
+            return;
+        }
+        let combinedChats = [];
+        checkedBoxes.forEach(box => { combinedChats = combinedChats.concat(currentParsedTabs[box.value]); });
+        combinedChats.sort((a, b) => (Number(a.getAttribute('timestamp')) || 0) - (Number(b.getAttribute('timestamp')) || 0));
+        renderLog(combinedChats);
+    }
+
+    function renderLog(chats) {
+        const display = document.getElementById('logContent');
+        display.innerHTML = '';
+
+        const activeTabs = [...new Set(chats.map(c => c.getAttribute('data-tab-name')))];
+        const legendDiv = document.createElement('div');
+        legendDiv.className = 'tab-legend';
+        activeTabs.forEach(tabName => {
+            const tIndex = tabIndexMap[tabName];
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            const colorCircle = document.createElement('div');
+            colorCircle.className = 'legend-color';
+            colorCircle.style.backgroundColor = `var(--tab-color-${tIndex})`;
+            const label = document.createElement('span');
+            label.textContent = tabName;
+            item.appendChild(colorCircle);
+            item.appendChild(label);
+            legendDiv.appendChild(item);
+        });
+        display.appendChild(legendDiv);
+
+        chats.forEach(chat => {
+            const tabName = chat.getAttribute('data-tab-name');
+            const tIndex = tabIndexMap[tabName];
+            const name = chat.getAttribute('name') || '不明';
+            const content = chat.textContent || '';
+            const color = chat.getAttribute('messColor') || '#333';
+            const imageIdentifier = chat.getAttribute('imageIdentifier');
+            const isSystem = chat.getAttribute('tag') === 'system' || chat.getAttribute('from') === 'System-BCDice';
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message' + (isSystem ? ' system-message' : '');
+            msgDiv.style.borderLeft = `4px solid var(--tab-color-${tIndex})`;
+
+            const tsStr = chat.getAttribute('timestamp');
+            let timeString = '';
+            if(tsStr) {
+                const d = new Date(parseInt(tsStr, 10));
+                timeString = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+            }
+            const tsDiv = document.createElement('div');
+            tsDiv.className = 'message-timestamp';
+            tsDiv.textContent = timeString;
+            msgDiv.appendChild(tsDiv);
+
+            if (!isSystem) {
+                const iconWrapper = document.createElement('div');
+                iconWrapper.className = 'message-icon';
+                if (imageIdentifier && imageMap[imageIdentifier]) {
+                    iconWrapper.classList.add('clickable-icon');
+                    iconWrapper.title = 'クリックで表示位置を調整';
+                    iconWrapper.addEventListener('click', () => openImageModal(imageIdentifier));
+                    const iconInner = document.createElement('div');
+                    iconInner.className = `icon-inner img-${imageIdentifier}`;
+                    iconWrapper.appendChild(iconInner);
+                } else {
+                    const iconInner = document.createElement('div');
+                    iconInner.className = 'icon-inner icon-default';
+                    iconWrapper.appendChild(iconInner);
+                }
+                msgDiv.appendChild(iconWrapper);
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'message-header';
+
+            const badge = document.createElement('span');
+            badge.className = 'tab-badge';
+            badge.style.backgroundColor = `var(--tab-color-${tIndex})`;
+            badge.textContent = tabName;
+            headerDiv.appendChild(badge);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'name-span';
+            if (!isSystem) nameSpan.style.color = color;
+            nameSpan.textContent = name;
+            headerDiv.appendChild(nameSpan);
+
+            const bodyDiv = document.createElement('div');
+            bodyDiv.className = 'message-body';
+            bodyDiv.textContent = content;
+
+            nameSpan.addEventListener('dblclick', makeEditable);
+            bodyDiv.addEventListener('dblclick', makeEditable);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.title = 'この発言を削除';
+            deleteBtn.addEventListener('click', () => { if(confirm('この発言を削除しますか？')) msgDiv.remove(); });
+
+            contentDiv.appendChild(headerDiv);
+            contentDiv.appendChild(bodyDiv);
+            msgDiv.appendChild(contentDiv);
+            msgDiv.appendChild(deleteBtn);
+            
+            display.appendChild(msgDiv);
+        });
+    }
+
+    // モーダル・スライダー制御
+    const modal = document.getElementById('imageModal');
+    const previewIcon = document.getElementById('modalPreviewIcon');
+    const sliderZ = document.getElementById('sliderZ');
+    const sliderX = document.getElementById('sliderX');
+    const sliderY = document.getElementById('sliderY');
+    const valZ = document.getElementById('valZ');
+    const valX = document.getElementById('valX');
+    const valY = document.getElementById('valY');
+
+    function openImageModal(id) {
+        editingImageId = id;
+        const pos = imagePositions[id];
+        previewIcon.className = `icon-inner img-${id}`;
+        sliderZ.value = pos.z; valZ.textContent = Number(pos.z).toFixed(1);
+        sliderX.value = pos.x; valX.textContent = pos.x;
+        sliderY.value = pos.y; valY.textContent = pos.y;
+        modal.style.display = 'flex';
+    }
+
+    function handleSliderChange() {
+        if (!editingImageId) return;
+        const z = sliderZ.value; const x = sliderX.value; const y = sliderY.value;
+        valZ.textContent = Number(z).toFixed(1); valX.textContent = x; valY.textContent = y;
+        imagePositions[editingImageId] = { z: z, x: x, y: y };
+        updateImageStyles();
+    }
+
+    sliderZ.addEventListener('input', handleSliderChange);
+    sliderX.addEventListener('input', handleSliderChange);
+    sliderY.addEventListener('input', handleSliderChange);
+
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        modal.style.display = 'none'; editingImageId = null;
+    });
+
+    function makeEditable(e) {
+        const el = e.target;
+        el.setAttribute('contenteditable', 'true');
+        el.focus();
+        el.addEventListener('blur', function onBlur() {
+            el.removeAttribute('contenteditable');
+            el.removeEventListener('blur', onBlur);
+        });
+    }
+
+    document.getElementById('copyBtn').addEventListener('click', () => {
+        let textToCopy = '';
+        const showTs = document.getElementById('toggleTimestamp').checked;
+        const useLegend = document.getElementById('toggleLegend').checked;
+        
+        if (useLegend) {
+            const activeTabs = [...new Set(Array.from(document.querySelectorAll('#tabCheckboxes input:checked')).map(cb => cb.value))];
+            textToCopy += `【表示タブ：${activeTabs.join('、')}】\n\n`;
+        }
+
+        const messages = document.querySelectorAll('#logContent .message');
+        messages.forEach(msg => {
+            const isSystem = msg.classList.contains('system-message');
+            const badgeText = msg.querySelector('.tab-badge').innerText;
+            const nameText = msg.querySelector('.name-span').innerText;
+            const bodyText = msg.querySelector('.message-body').innerText;
+            
+            let tsText = '';
+            if (showTs) {
+                const tsEl = msg.querySelector('.message-timestamp');
+                if (tsEl) tsText = `[${tsEl.innerText}] `;
+            }
+
+            const badgeStr = useLegend ? '' : `【${badgeText}】`;
+            if (isSystem) { textToCopy += `${tsText}${badgeStr}[System] ${nameText}\n${bodyText}\n\n`; } 
+            else { textToCopy += `${tsText}${badgeStr}■${nameText}\n${bodyText}\n\n`; }
+        });
+        navigator.clipboard.writeText(textToCopy).then(() => { alert('ログをクリップボードにコピーしました！'); })
+        .catch(err => alert('コピーに失敗しました。'));
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const tabNames = checkedBoxes.map(b => b.value).join('_');
+        const filename = tabNames ? `${tabNames}_log.html` : 'TRPG_log.html';
+
+        const clone = document.getElementById('logContent').cloneNode(true);
+        clone.querySelectorAll('.delete-btn').forEach(el => el.remove());
+        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        
+        clone.querySelectorAll('.clickable-icon').forEach(el => {
+            el.classList.remove('clickable-icon');
+            el.classList.add('export-clickable');
+            el.title = "クリックで元画像をフルサイズ表示";
+        });
+        
+        const displayHtml = clone.innerHTML;
+        const dynamicStyles = document.getElementById('dynamic-image-styles').textContent;
+        const showTs = document.getElementById('toggleTimestamp').checked;
+        const useLegend = document.getElementById('toggleLegend').checked;
+        
+        let rootStylesContent = '';
+        Object.keys(tabIndexMap).forEach(name => {
+            const idx = tabIndexMap[name];
+            const color = document.documentElement.style.getPropertyValue(`--tab-color-${idx}`).trim();
+            rootStylesContent += `--tab-color-${idx}: ${color}; `;
+        });
+        
+        const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>TRPGログ: ${tabNames}</title>
+    <style>
+        :root { ${rootStylesContent} }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; padding: 20px; }
+        .log-container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .title { border-bottom: 2px solid #4a90e2; padding-bottom: 10px; color: #4a90e2; margin-top: 0; }
+        
+        .tab-legend { display: ${useLegend ? 'flex' : 'none'}; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; padding: 12px 15px; background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 4px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #4a5568; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+        .use-legend .tab-badge { display: none; }
+
+        .message { display: flex; align-items: flex-start; margin-bottom: 16px; line-height: 1.6; position: relative; padding-left: 10px; border-radius: 2px; }
+        .message-timestamp { display: ${showTs ? 'block' : 'none'}; position: absolute; top: 2px; right: 10px; font-size: 0.75em; color: #a0aec0; }
+        .message-icon { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; margin-right: 12px; background-color: #e2e8f0; flex-shrink: 0; border: 1px solid #cbd5e0; position: relative; }
+        .icon-inner { width: 100%; height: 100%; background-size: cover; background-repeat: no-repeat; background-position: var(--pos-x, 50%) var(--pos-y, 50%); transform-origin: var(--pos-x, 50%) var(--pos-y, 50%); transform: scale(var(--zoom, 1)); }
+        .icon-default { background-image: url('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); }
+        
+        .export-clickable { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .export-clickable:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--primary-color); }
+
+        .message-content { flex-grow: 1; }
+        .message-header { font-weight: bold; font-size: 0.95em; margin-bottom: 2px; display: flex; align-items: center; flex-wrap: wrap; }
+        .tab-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; color: #fff; font-size: 0.75em; margin-right: 8px; font-weight: normal; text-shadow: 0 1px 1px rgba(0,0,0,0.2); }
+        .message-body { white-space: pre-wrap; color: #222; }
+        
+        .system-message { background-color: #f0f4f8; padding: 10px 12px; margin-left: 56px; border-radius: 4px; }
+        .system-message .message-icon { display: none; }
+        .system-message .message-header { color: #718096 !important; font-size: 0.85em; }
+        .system-message .message-body { color: #4a5568; font-size: 0.9em; }
+
+        /* 元画像表示用Lightbox */
+        .lightbox-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: pointer; }
+        .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        
+        ${dynamicStyles}
+    </style>
+</head>
+<body>
+    <div id="logContent" class="log-container ${useLegend ? 'use-legend' : ''}">
+        <h1 class="title">ログ: ${tabNames}</h1>
+        ${displayHtml}
+    </div>
+
+    <div id="lightbox" class="lightbox-overlay">
+        <img id="lightboxImg" class="lightbox-img">
+    </div>
+
+    <script>
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        document.querySelectorAll('.export-clickable').forEach(icon => {
+            icon.addEventListener('click', () => {
+                const inner = icon.querySelector('.icon-inner');
+                if(inner) {
+                    const bg = getComputedStyle(inner).backgroundImage;
+                    if(bg && bg !== 'none') {
+                        const url = bg.slice(4, -1).replace(/["']/g, "");
+                        lightboxImg.src = url;
+                        lightbox.style.display = 'flex';
+                    }
+                }
+            });
+        });
+        lightbox.addEventListener('click', () => { lightbox.style.display = 'none'; });
+    <\/script>
+</body>
+</html>`;
+
+        const blob = new Blob([htmlTemplate], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+</script>
+</body>
+</html>
