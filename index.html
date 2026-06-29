@@ -180,6 +180,57 @@
         .slider-group label { display: block; font-size: 13px; margin-bottom: 5px; color: #555; }
         .slider-group input[type="range"] { width: 100%; cursor: pointer; }
         .modal-close-btn { width: 100%; background-color: var(--primary-color); margin-top: 15px; }
+
+        /* 追加ボタンとメニューのスタイル */
+        .add-block-container {
+            position: relative; text-align: center; margin: -8px 0;
+            z-index: 10; opacity: 0; transition: opacity 0.2s;
+        }
+        .add-block-container:hover { opacity: 1; }
+        .add-block-btn {
+            background: #fff; border: 1px dashed var(--primary-color); color: var(--primary-color);
+            border-radius: 50%; width: 24px; height: 24px; line-height: 22px; cursor: pointer;
+            display: inline-block; font-weight: bold; font-size: 16px; transition: all 0.2s;
+        }
+        .add-block-btn:hover { background: var(--primary-color); color: #fff; transform: scale(1.1); }
+
+        .add-menu {
+            display: none; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+            background: #fff; border: 1px solid #cbd5e0; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 4px; padding: 5px 0; flex-direction: column; min-width: 130px; z-index: 20;
+        }
+        .add-menu button {
+            background: none; color: #4a5568; border: none; padding: 8px 15px; text-align: left;
+            width: 100%; font-weight: normal; font-size: 13px; border-radius: 0;
+        }
+        .add-menu button:hover { background: #f0f4f8; }
+
+        .resizable-image-wrapper {
+            resize: both; overflow: hidden; display: inline-block; position: relative;
+            max-width: 100%; min-width: 50px; min-height: 50px;
+            border: 2px dashed transparent; margin: 10px 0; border-radius: 4px;
+            background: #f8fafc;
+        }
+        .resizable-image-wrapper:hover { border-color: #cbd5e0; }
+        .inserted-image {
+            width: 100%; height: 100%; object-fit: contain;
+            cursor: pointer; display: block; margin: 0; pointer-events: auto;
+        }
+
+        /* 追加ダイアログ */
+        .dialog-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .dialog-content {
+            background: #fff; padding: 25px; border-radius: 8px; width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .dialog-content h3 { margin-top: 0; font-size: 16px; margin-bottom: 15px; }
+        .dialog-content select { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #cbd5e0; border-radius: 4px; }
+        .dialog-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+        .dialog-buttons button { padding: 8px 12px; }
+        .btn-cancel { background: #e2e8f0; color: #4a5568; }
+        .btn-cancel:hover { background: #cbd5e0; }
     </style>
     <style id="dynamic-image-styles"></style>
 </head>
@@ -242,6 +293,18 @@
         </div>
     </div>
 </div>
+
+<div id="addDialog" class="dialog-overlay">
+    <div class="dialog-content">
+        <h3>発言者の選択</h3>
+        <select id="speakerSelect"></select>
+        <div class="dialog-buttons">
+            <button class="btn-cancel" onclick="document.getElementById('addDialog').style.display='none'">キャンセル</button>
+            <button class="btn-download" id="confirmAddSpeakerBtn">追加</button>
+        </div>
+    </div>
+</div>
+<input type="file" id="imageInsertInput" accept="image/*" style="display: none;">
 
 <div id="imageModal" class="modal-overlay">
     <div class="modal-content">
@@ -477,6 +540,9 @@
         });
         display.appendChild(legendDiv);
 
+        // 最初の追加ボタン
+        display.appendChild(createAddBlock());
+
         chats.forEach(chat => {
             const tabName = chat.getAttribute('data-tab-name');
             const tIndex = tabIndexMap[tabName];
@@ -556,8 +622,218 @@
             msgDiv.appendChild(deleteBtn);
             
             display.appendChild(msgDiv);
+            
+            // メッセージの後に追加ボタン
+            display.appendChild(createAddBlock());
         });
     }
+
+    // 追加ブロック用の変数
+    let currentAddTarget = null;
+    
+    function createAddBlock() {
+        const container = document.createElement('div');
+        container.className = 'add-block-container';
+        
+        const btn = document.createElement('div');
+        btn.className = 'add-block-btn';
+        btn.textContent = '＋';
+        
+        const menu = document.createElement('div');
+        menu.className = 'add-menu';
+        
+        const btnMsg = document.createElement('button');
+        btnMsg.innerHTML = '💬 発言を追加';
+        btnMsg.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.style.display = 'none';
+            openAddSpeakerDialog(container);
+        });
+        
+        const btnImg = document.createElement('button');
+        btnImg.innerHTML = '🖼️ 画像を追加';
+        btnImg.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menu.style.display = 'none';
+            currentAddTarget = container;
+            document.getElementById('imageInsertInput').click();
+        });
+        
+        menu.appendChild(btnMsg);
+        menu.appendChild(btnImg);
+        container.appendChild(btn);
+        container.appendChild(menu);
+        
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.add-menu').forEach(m => m.style.display = 'none');
+            menu.style.display = 'flex';
+        });
+        
+        return container;
+    }
+
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.add-menu').forEach(m => m.style.display = 'none');
+    });
+
+    function openAddSpeakerDialog(targetContainer) {
+        currentAddTarget = targetContainer;
+        const select = document.getElementById('speakerSelect');
+        select.innerHTML = '';
+        
+        const speakers = new Map();
+        document.querySelectorAll('.message').forEach(msg => {
+            if (msg.classList.contains('system-message')) return;
+            const nameEl = msg.querySelector('.name-span');
+            const iconInner = msg.querySelector('.icon-inner');
+            if (nameEl) {
+                const name = nameEl.textContent;
+                const color = nameEl.style.color;
+                let imgId = null;
+                if (iconInner && iconInner.className.includes('img-')) {
+                    const match = iconInner.className.match(/img-([a-z0-9]+)/);
+                    if (match) imgId = match[1];
+                }
+                const key = name + '_' + color;
+                if (!speakers.has(key)) {
+                    speakers.set(key, { name, color, imgId });
+                }
+            }
+        });
+        
+        speakers.forEach((val, key) => {
+            const opt = document.createElement('option');
+            opt.value = JSON.stringify(val);
+            opt.textContent = val.name;
+            select.appendChild(opt);
+        });
+        
+        const newOpt = document.createElement('option');
+        newOpt.value = 'NEW';
+        newOpt.textContent = '＋ 新規発言者を追加';
+        select.appendChild(newOpt);
+        
+        document.getElementById('addDialog').style.display = 'flex';
+    }
+
+    document.getElementById('confirmAddSpeakerBtn').addEventListener('click', () => {
+        document.getElementById('addDialog').style.display = 'none';
+        if (!currentAddTarget) return;
+        
+        const select = document.getElementById('speakerSelect');
+        let speakerData = { name: '新規キャラクター', color: '#333', imgId: null };
+        if (select.value !== 'NEW') {
+            speakerData = JSON.parse(select.value);
+        }
+        
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message';
+        const activeTabs = [...new Set(Array.from(document.querySelectorAll('#tabCheckboxes input:checked')).map(cb => cb.value))];
+        const tabName = activeTabs[0] || '追加タブ';
+        const tIndex = tabIndexMap[tabName] !== undefined ? tabIndexMap[tabName] : 0;
+        msgDiv.style.borderLeft = `4px solid var(--tab-color-${tIndex})`;
+        
+        const tsDiv = document.createElement('div');
+        tsDiv.className = 'message-timestamp';
+        msgDiv.appendChild(tsDiv);
+        
+        const iconWrapper = document.createElement('div');
+        iconWrapper.className = 'message-icon';
+        const iconInner = document.createElement('div');
+        if (speakerData.imgId) {
+            iconInner.className = `icon-inner img-${speakerData.imgId}`;
+            iconWrapper.classList.add('clickable-icon');
+            iconWrapper.title = 'クリックで表示位置を調整';
+            iconWrapper.addEventListener('click', () => openImageModal(speakerData.imgId));
+        } else {
+            iconInner.className = 'icon-inner icon-default';
+        }
+        iconWrapper.appendChild(iconInner);
+        msgDiv.appendChild(iconWrapper);
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'message-header';
+        
+        const badge = document.createElement('span');
+        badge.className = 'tab-badge';
+        badge.style.backgroundColor = `var(--tab-color-${tIndex})`;
+        badge.textContent = tabName;
+        headerDiv.appendChild(badge);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'name-span';
+        nameSpan.style.color = speakerData.color;
+        nameSpan.textContent = speakerData.name;
+        headerDiv.appendChild(nameSpan);
+        
+        const bodyDiv = document.createElement('div');
+        bodyDiv.className = 'message-body';
+        bodyDiv.textContent = '（本文をダブルクリックして編集）';
+        
+        nameSpan.addEventListener('dblclick', makeEditable);
+        bodyDiv.addEventListener('dblclick', makeEditable);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.title = 'この発言を削除';
+        deleteBtn.addEventListener('click', () => { if(confirm('この発言を削除しますか？')) { msgDiv.remove(); newAddBlock.remove(); } });
+        
+        contentDiv.appendChild(headerDiv);
+        contentDiv.appendChild(bodyDiv);
+        msgDiv.appendChild(contentDiv);
+        msgDiv.appendChild(deleteBtn);
+        
+        currentAddTarget.parentNode.insertBefore(msgDiv, currentAddTarget.nextSibling);
+        const newAddBlock = createAddBlock();
+        currentAddTarget.parentNode.insertBefore(newAddBlock, msgDiv.nextSibling);
+    });
+
+    document.getElementById('imageInsertInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file || !currentAddTarget) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'resizable-image-wrapper';
+                
+                const initialWidth = Math.min(img.width, 400);
+                const aspect = img.height / img.width;
+                wrapper.style.width = initialWidth + 'px';
+                wrapper.style.height = (initialWidth * aspect) + 'px';
+                
+                img.className = 'inserted-image';
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '🗑️';
+                deleteBtn.title = 'この画像を削除';
+                deleteBtn.style.background = 'rgba(255,255,255,0.7)';
+                deleteBtn.style.borderRadius = '50%';
+                deleteBtn.style.opacity = '1';
+                deleteBtn.style.right = '5px';
+                deleteBtn.style.top = '5px';
+                deleteBtn.addEventListener('click', () => { if(confirm('この画像を削除しますか？')) { wrapper.remove(); newAddBlock.remove(); } });
+                
+                wrapper.appendChild(img);
+                wrapper.appendChild(deleteBtn);
+                
+                currentAddTarget.parentNode.insertBefore(wrapper, currentAddTarget.nextSibling);
+                const newAddBlock = createAddBlock();
+                currentAddTarget.parentNode.insertBefore(newAddBlock, wrapper.nextSibling);
+            };
+            img.src = event.target.result;
+            e.target.value = '';
+        };
+        reader.readAsDataURL(file);
+    });
 
     // モーダル・スライダー制御
     const modal = document.getElementById('imageModal');
@@ -643,10 +919,16 @@
 
         const clone = document.getElementById('logContent').cloneNode(true);
         clone.querySelectorAll('.delete-btn').forEach(el => el.remove());
+        clone.querySelectorAll('.add-block-container').forEach(el => el.remove());
         clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
         
         clone.querySelectorAll('.clickable-icon').forEach(el => {
             el.classList.remove('clickable-icon');
+            el.classList.add('export-clickable');
+            el.title = "クリックで元画像をフルサイズ表示";
+        });
+        
+        clone.querySelectorAll('.inserted-image').forEach(el => {
             el.classList.add('export-clickable');
             el.title = "クリックで元画像をフルサイズ表示";
         });
@@ -688,6 +970,8 @@
         
         .export-clickable { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
         .export-clickable:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--primary-color); }
+        .resizable-image-wrapper { resize: both; overflow: hidden; display: inline-block; position: relative; max-width: 100%; min-width: 50px; min-height: 50px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 4px; background: #fdfdfd; }
+        .inserted-image { width: 100%; height: 100%; object-fit: contain; display: block; margin: 0; }
 
         .message-content { flex-grow: 1; }
         .message-header { font-weight: bold; font-size: 0.95em; margin-bottom: 2px; display: flex; align-items: center; flex-wrap: wrap; }
@@ -720,14 +1004,20 @@
         const lightbox = document.getElementById('lightbox');
         const lightboxImg = document.getElementById('lightboxImg');
         document.querySelectorAll('.export-clickable').forEach(icon => {
-            icon.addEventListener('click', () => {
-                const inner = icon.querySelector('.icon-inner');
-                if(inner) {
-                    const bg = getComputedStyle(inner).backgroundImage;
-                    if(bg && bg !== 'none') {
-                        const url = bg.slice(4, -1).replace(/["']/g, "");
-                        lightboxImg.src = url;
-                        lightbox.style.display = 'flex';
+            icon.addEventListener('click', (e) => {
+                if (e.target.tagName.toLowerCase() === 'img') {
+                    lightboxImg.src = e.target.src;
+                    lightbox.style.display = 'flex';
+                } else {
+                    // 通常の背景画像アイコンの場合
+                    const inner = icon.classList.contains('icon-inner') ? icon : icon.querySelector('.icon-inner');
+                    if(inner) {
+                        const bg = getComputedStyle(inner).backgroundImage;
+                        if(bg && bg !== 'none') {
+                            const url = bg.slice(4, -1).replace(/["']/g, "");
+                            lightboxImg.src = url;
+                            lightbox.style.display = 'flex';
+                        }
                     }
                 }
             });
