@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ココフォリア ログ整形ツール</title>
+    <!-- Google Fonts の読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #0b0f19;
+            --card-bg: #151f32;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #223049;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --font-main: 'Inter', 'Noto Sans JP', sans-serif;
+            --font-title: 'Outfit', 'Inter', 'Noto Sans JP', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                              radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-family: var(--font-title);
+            font-size: 28px;
+            margin: 0 0 10px 0;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: inline-block;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin: 0;
+        }
+
+        /* アップロードセクション */
+        .upload-section {
+            margin-bottom: 30px;
+            padding: 40px 20px;
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            text-align: center;
+            background-color: rgba(21, 31, 50, 0.5);
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .upload-section:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(99, 102, 241, 0.05);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+        }
+
+        .upload-section p {
+            margin: 0 0 15px 0;
+            color: var(--text-color);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .upload-section .hint-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        /* ファイル入力隠し */
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .btn-upload-trigger {
+            background: var(--primary-gradient);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            display: inline-block;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .upload-section:hover .btn-upload-trigger {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        #htmlInput {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        #loadingMsg {
+            display: none;
+            color: var(--primary-color);
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 14px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* ワークスペースとタブUI */
+        #workspace {
+            display: none;
+        }
+
+        .view-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1px;
+        }
+
+        .view-tab-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            border-bottom: 3px solid transparent;
+            border-radius: 0;
+            padding: 12px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .view-tab-btn:hover {
+            color: var(--text-color);
+        }
+
+        .view-tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* コントロールエリア */
+        .controls {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+        }
+
+        .checkbox-group-title {
+            width: 100%;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--card-bg);
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 13px;
+            transition: all 0.2s;
+            color: var(--text-color);
+        }
+
+        .tab-item:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+
+        .tab-item input[type="color"] {
+            border: none;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            cursor: pointer;
+            border-radius: 50%;
+            overflow: hidden;
+            background: transparent;
+        }
+
+        .tab-item input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        .tab-item input[type="color"]::-webkit-color-swatch {
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+        }
+
+        .tab-item label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+            font-weight: 500;
+        }
+
+        .controls-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .toggles-wrapper {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .toggle-label {
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(30, 41, 59, 0.3);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+
+        .toggle-label:hover {
+            border-color: var(--primary-color);
+            color: var(--text-color);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .toggle-label input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            padding: 10px 18px;
+            font-size: 14px;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-copy {
+            background-color: #3b4b66;
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-copy:hover {
+            background-color: #4a5c7d;
+        }
+
+        .btn-download {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(99, 102, 241, 0.3);
+        }
+
+        /* ログ表示エリア（ここは出力プレビューのため白背景で黒文字をベースとする） */
+        .log-display-container {
+            background: #fff;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+
+        .log-display {
+            max-height: 700px;
+            overflow-y: auto;
+            background: #fff;
+            padding: 5px;
+        }
+
+        .log-display::-webkit-scrollbar {
+            width: 8px;
+        }
+        .log-display::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .log-display::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        /* 一括設定グリッド */
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 20px;
+            padding: 10px 0;
+        }
+
+        .icon-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .icon-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--primary-color);
+            box-shadow: 0 8px 16px rgba(99, 102, 241, 0.15);
+        }
+
+        .icon-card .message-icon {
+            margin: 0 0 12px 0;
+            width: 72px;
+            height: 72px;
+        }
+
+        .icon-card-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color);
+            word-break: break-all;
+            line-height: 1.4;
+            margin-bottom: 12px;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-upload-btn {
+            background-color: var(--border-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 90%;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .card-upload-btn:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        /* ログ表示用デザイン */
+        .tab-legend {
+            display: none;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            padding: 12px 15px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .use-legend .tab-legend {
+            display: flex;
+        }
+        .use-legend .tab-badge {
+            display: none;
+        }
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            line-height: 1.6;
+            position: relative;
+            padding-right: 40px;
+            padding-left: 10px;
+            border-radius: 4px;
+            font-family: sans-serif;
+        }
+        
+        .message-timestamp {
+            display: none;
+            position: absolute;
+            top: 2px;
+            right: 35px;
+            font-size: 0.75em;
+            color: #94a3b8;
+            pointer-events: none;
+        }
+        .show-timestamps .message-timestamp {
+            display: block;
+        }
+
+        .message-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin-right: 12px;
+            background-color: #f1f5f9;
+            flex-shrink: 0;
+            border: 1px solid #cbd5e1;
+            position: relative;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .icon-inner {
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: var(--pos-x, 50%) var(--pos-y, 50%);
+            transform-origin: var(--pos-x, 50%) var(--pos-y, 50%);
+            transform: scale(var(--zoom, 1));
+        }
+
+        /* 画像未設定プレビュー（＋アイコン） */
+        .icon-default {
+            background-color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .icon-default::before {
+            content: "＋";
+            font-size: 20px;
+            color: #94a3b8;
+            font-weight: 300;
+        }
+        
+        .clickable-icon {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .clickable-icon:hover {
+            box-shadow: 0 0 0 2px var(--primary-color);
+            transform: scale(1.05);
+        }
+        
+        .message-content {
+            flex-grow: 1;
+        }
+        
+        .delete-btn {
+            position: absolute;
+            right: 0;
+            top: 0;
+            background: none;
+            border: none;
+            font-size: 16px;
+            color: #94a3b8;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s, color 0.2s;
+            padding: 5px;
+        }
+        .message:hover .delete-btn {
+            opacity: 1;
+        }
+        .delete-btn:hover {
+            color: var(--danger-color);
+        }
+
+        .name-span, .message-body {
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        .name-span:hover, .message-body:hover {
+            background-color: #f1f5f9;
+            cursor: text;
+        }
+        [contenteditable="true"] {
+            outline: 2px dashed var(--primary-color);
+            background-color: #fffbeb !important;
+            padding: 2px 4px;
+            margin: -2px -4px;
+        }
+
+        .message-header {
+            font-weight: bold;
+            font-size: 0.95em;
+            margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .tab-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 0.75em;
+            margin-right: 8px;
+            font-weight: normal;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+        }
+        .message-body {
+            white-space: pre-wrap;
+            color: #1e293b;
+        }
+        
+        .system-message {
+            background-color: #f8fafc;
+            padding: 10px 12px;
+            margin-left: 56px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .system-message .message-icon {
+            display: none;
+        }
+        .system-message .message-header {
+            color: #64748b !important;
+            font-size: 0.85em;
+        }
+        .system-message .message-body {
+            color: #475569;
+            font-size: 0.9em;
+        }
+
+        /* 位置調整用モーダル */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.75);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            width: 340px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-family: var(--font-title);
+            font-size: 18px;
+            color: var(--text-color);
+        }
+        .modal-preview-wrapper {
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: center;
+        }
+        .preview-icon-wrapper {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid var(--primary-color);
+            background-color: #f1f5f9;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .slider-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .slider-group label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+            background: var(--border-color);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+        .modal-close-btn {
+            width: 100%;
+            background: var(--primary-gradient);
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            justify-content: center;
+        }
+        
+        /* ログ間挿入トリガー */
+        .insert-trigger {
+            height: 12px;
+            margin: -6px 0;
+            position: relative;
+            cursor: pointer;
+            z-index: 10;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+        }
+        .insert-trigger::after {
+            content: "";
+            position: absolute;
+            left: 56px;
+            right: 40px;
+            height: 2px;
+            background: var(--primary-gradient);
+            transform: scaleX(0);
+            transition: transform 0.2s;
+        }
+        .insert-trigger .insert-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+            transform: scale(0);
+            transition: transform 0.2s;
+        }
+        .insert-trigger:hover {
+            height: 28px;
+            margin: -14px 0;
+            opacity: 1;
+        }
+        .insert-trigger:hover::after {
+            transform: scaleX(1);
+        }
+        .insert-trigger:hover .insert-btn {
+            transform: scale(1);
+        }
+
+        /* 挿入画像メッセージ */
+        .image-message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            padding-left: 10px;
+            padding-right: 40px;
+            position: relative;
+        }
+        .inserted-image-wrapper {
+            margin-left: 56px;
+            position: relative;
+            display: inline-block;
+        }
+        .inserted-image-wrapper:hover .resize-handle {
+            opacity: 1;
+        }
+        .resize-handle {
+            width: 14px;
+            height: 14px;
+            background: var(--primary-gradient);
+            position: absolute;
+            right: -6px;
+            bottom: -6px;
+            cursor: se-resize;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+    </style>
+    <style id="dynamic-image-styles"></style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🎲 ココフォリア ログ整形ツール</h1>
+        <p class="subtitle">ココフォリアのHTMLログを読み込み、立ち絵アイコンや表情差分を自由に設定して出力します</p>
+        <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px;">
+            <button id="downloadToolSelfBtn" class="btn-copy" style="background-color: #3b4b66; font-size: 12px; padding: 6px 12px; border-radius: 6px;">💻 ツール本体(HTML)を保存</button>
+        </div>
+    </header>
+    
+    <div class="upload-section" onclick="document.getElementById('htmlInput').click();">
+        <p>ココフォリアから出力した「HTMLログファイル」を選択してください</p>
+        <div class="file-input-wrapper">
+            <span class="btn-upload-trigger">ファイルを選択</span>
+            <input type="file" id="htmlInput" accept=".html" onclick="event.stopPropagation();" />
+        </div>
+        <p class="hint-text">（全タブ出力 / 個別タブ出力 どちらのHTMLにも対応）</p>
+        <div id="loadingMsg">
+            ログデータを読み込んでいます...
+        </div>
+    </div>
+
+    <div id="workspace">
+        <div class="view-tabs">
+            <button class="view-tab-btn active" data-target="logViewTab">📝 ログ編集</button>
+            <button class="view-tab-btn" data-target="iconViewTab">🖼️ アイコン一括設定</button>
+        </div>
+
+        <div id="logViewTab" class="tab-content active">
+            <div class="controls" id="controls">
+                <div class="checkbox-group" id="tabCheckboxes" style="display: none;"></div>
+                <div class="controls-toolbar">
+                    <div class="toggles-wrapper">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="toggleTimestamp"> ⏱️ 発言時間を表示する
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="toggleLegend"> 🏷️ バッジを消して上部対応表にする
+                        </label>
+                    </div>
+                    <div class="action-buttons">
+                        <button id="copyBtn" class="btn-copy">📋 コピー</button>
+                        <button id="downloadBtn" class="btn-download">💾 HTML保存</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="log-display-container">
+                <div style="color: #64748b; font-size: 0.85em; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+                    💡 <strong>アイコン画像の設定方法:</strong><br>
+                    ・左側のアイコン枠を<strong>クリック</strong>すると、その発言「のみ」の表情差分などを個別にアップロード・調整できます。<br>
+                    ・ダブルクリックで名前や発言本文をその場で編集できます。右端の🗑️で削除可能です。
+                </div>
+                <div class="log-display">
+                    <div id="logContent">
+                        <div style="padding: 20px; text-align: center; color: #94a3b8;">ログファイルを読み込んでください。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="iconViewTab" class="tab-content">
+            <div class="log-display-container" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+                <div style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 20px; background: rgba(30, 41, 59, 0.3); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 8px;">
+                    💡 <strong>キャラクター別デフォルト画像:</strong><br>
+                    ・ここでアップロードした画像は、そのキャラクターのデフォルト画像としてすべての発言に一括反映されます。<br>
+                    ・画像アップロード後、アイコン枠をクリックすると、ズームや位置調整を調整できます。
+                </div>
+                <div class="icon-grid" id="iconGrid"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="imageModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>アイコン表示の調整</h3>
+        <div class="modal-preview-wrapper">
+            <div class="preview-icon-wrapper"><div id="modalPreviewIcon" class="icon-inner"></div></div>
+        </div>
+        <div class="slider-group">
+            <label>拡大 (Zoom): <span id="valZ">1.0</span>x</label>
+            <input type="range" id="sliderZ" min="1" max="4" step="0.1" value="1">
+        </div>
+        <div class="slider-group">
+            <label>左右 (X軸): <span id="valX">50</span>%</label>
+            <input type="range" id="sliderX" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="slider-group">
+            <label>上下 (Y軸): <span id="valY">50</span>%</label>
+            <input type="range" id="sliderY" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="slider-group" style="margin-top: 15px; text-align: center;">
+            <button id="modalChangeImgBtn" class="btn-copy" style="width: 100%; background-color: #3b4b66; justify-content: center;">🖼️ 画像を変更</button>
+            <input type="file" id="modalImageInput" accept="image/*" style="display: none;">
+        </div>
+        <button id="closeModalBtn" class="modal-close-btn">決定</button>
+    </div>
+</div>
+
+<script>
+    let chatMessages = [];
+    let currentParsedTabs = {};
+    let imageMap = {}; 
+    let imagePositions = {};
+    let characterNames = [];
+    let editingImageId = null;
+    let tabIndexMap = {}; 
+    
+    const defaultPalette = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#64748b', '#ef4444'];
+
+    // タブ切り替えロジック
+    document.querySelectorAll('.view-tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            e.target.classList.add('active');
+            document.getElementById(e.target.dataset.target).classList.add('active');
+        });
+    });
+
+    // ココフォリアHTMLの読み込み
+    document.getElementById('htmlInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('loadingMsg').style.display = 'block';
+        document.getElementById('workspace').style.display = 'none';
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const text = event.target.result;
+            try {
+                parseCcfoliaHtml(text);
+                document.getElementById('workspace').style.display = 'block';
+            } catch (error) {
+                console.error(error);
+                alert('ファイルの読み込みに失敗しました。ココフォリアのログHTMLであることを確認してください。');
+            } finally {
+                document.getElementById('loadingMsg').style.display = 'none';
+            }
+        };
+        reader.readAsText(file, 'utf-8');
+    });
+
+    function parseCcfoliaHtml(htmlText) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+        
+        const pElements = doc.querySelectorAll('p');
+        if (pElements.length === 0) {
+            throw new Error('No p elements found');
+        }
+
+        chatMessages = [];
+        let detectedTabs = new Set();
+        let charNames = new Set();
+
+        pElements.forEach((p, index) => {
+            const spans = Array.from(p.querySelectorAll('span'));
+            if (spans.length === 0) return;
+
+            let tabName = '';
+            let charName = '';
+            let content = '';
+            const color = p.style.color || '#333333';
+
+            let firstSpanText = spans[0].textContent.trim();
+            const tabMatch = firstSpanText.match(/^\[(.*)\]$/);
+
+            if (tabMatch) {
+                tabName = tabMatch[1];
+                detectedTabs.add(tabName);
+
+                if (spans.length >= 2) {
+                    charName = spans[1].textContent.replace(/\s*:\s*$/, '').trim();
+                }
+                if (spans.length >= 3) {
+                    content = spans[2].innerHTML
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&amp;/g, '&');
+                }
+            } else {
+                tabName = 'ログ';
+                detectedTabs.add(tabName);
+
+                charName = firstSpanText.replace(/\s*:\s*$/, '').trim();
+                if (spans.length >= 2) {
+                    content = spans[1].innerHTML
+                        .replace(/<br\s*\/?>/gi, '\n')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&amp;/g, '&');
+                }
+            }
+
+            if (!charName && content) {
+                charName = 'System';
+            }
+            if (charName && charName !== 'System') {
+                charNames.add(charName);
+            }
+
+            chatMessages.push({
+                id: `msg-${index}`,
+                index: index,
+                tabName: tabName,
+                name: charName || 'System',
+                content: content,
+                color: color,
+                imageIdentifier: charName && charName !== 'System' ? `char-img-${charName}` : ''
+            });
+        });
+
+        characterNames = Array.from(charNames);
+        
+        currentParsedTabs = {};
+        detectedTabs.forEach(t => {
+            currentParsedTabs[t] = chatMessages.filter(m => m.tabName === t);
+        });
+
+        // タブ選択UIの構築
+        const container = document.getElementById('tabCheckboxes');
+        container.innerHTML = '<div class="checkbox-group-title">表示するタブを選択（複数選択で時系列に結合されます）:</div>';
+        
+        tabIndexMap = {};
+        let tIndex = 0;
+        
+        const sortedTabs = Array.from(detectedTabs);
+        
+        // 全タブと個別ログの識別
+        const isMultiTab = sortedTabs.length > 1;
+        if (isMultiTab) {
+            container.style.display = 'flex';
+        } else {
+            container.style.display = 'none';
+        }
+
+        sortedTabs.forEach(tabName => {
+            tabIndexMap[tabName] = tIndex;
+            const defaultColor = defaultPalette[tIndex % defaultPalette.length];
+            document.documentElement.style.setProperty(`--tab-color-${tIndex}`, defaultColor);
+
+            const tabItem = document.createElement('div');
+            tabItem.className = 'tab-item';
+
+            const colorPicker = document.createElement('input');
+            colorPicker.type = 'color';
+            colorPicker.value = defaultColor;
+            colorPicker.title = 'タブの色を変更';
+            colorPicker.addEventListener('input', (e) => {
+                document.documentElement.style.setProperty(`--tab-color-${tabIndexMap[tabName]}`, e.target.value);
+            });
+
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = tabName;
+            checkbox.checked = true;
+            checkbox.addEventListener('change', updateDisplay);
+
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(` ${tabName} (${currentParsedTabs[tabName].length})`));
+
+            tabItem.appendChild(colorPicker);
+            tabItem.appendChild(label);
+            container.appendChild(tabItem);
+
+            tIndex++;
+        });
+
+        document.getElementById('controls').style.display = 'flex';
+        
+        // キャラクター画像初期化
+        characterNames.forEach(name => {
+            const id = `char-img-${name}`;
+            if (!imageMap[id]) {
+                imagePositions[id] = { z: 1, x: 50, y: 50 };
+            }
+        });
+
+        renderIconGrid();
+        updateDisplay();
+    }
+
+    function updateImageStyles() {
+        let cssString = '';
+        for (const [id, url] of Object.entries(imageMap)) {
+            const pos = imagePositions[id];
+            cssString += `.img-${id} { background-image: url('${url}'); --zoom: ${pos.z}; --pos-x: ${pos.x}%; --pos-y: ${pos.y}%; }\n`;
+        }
+        document.getElementById('dynamic-image-styles').textContent = cssString;
+    }
+
+    // アイコン一括設定グリッドの描画
+    function renderIconGrid() {
+        const grid = document.getElementById('iconGrid');
+        grid.innerHTML = '';
+
+        characterNames.forEach(name => {
+            const id = `char-img-${name}`;
+            const card = document.createElement('div');
+            card.className = 'icon-card';
+
+            const iconWrapper = document.createElement('div');
+            iconWrapper.className = 'message-icon clickable-icon';
+            iconWrapper.title = imageMap[id] ? 'クリックで表示位置を調整' : 'クリックしてデフォルト画像をアップロード';
+            
+            const iconInner = document.createElement('div');
+            if (imageMap[id]) {
+                iconInner.className = `icon-inner img-${id}`;
+                iconWrapper.addEventListener('click', () => openImageModal(id));
+            } else {
+                iconInner.className = 'icon-inner icon-default';
+                iconWrapper.addEventListener('click', () => {
+                    card.querySelector('.card-file-input').click();
+                });
+            }
+            iconWrapper.appendChild(iconInner);
+
+            const nameLabel = document.createElement('div');
+            nameLabel.className = 'icon-card-name';
+            nameLabel.textContent = name;
+
+            const uploadBtn = document.createElement('label');
+            uploadBtn.className = 'card-upload-btn';
+            uploadBtn.textContent = imageMap[id] ? '画像を変更' : '画像をアップロード';
+
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.className = 'card-file-input';
+            fileInput.accept = 'image/*';
+            fileInput.style.display = 'none';
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imageMap[id] = event.target.result;
+                    imagePositions[id] = { z: 1, x: 50, y: 50 };
+                    updateImageStyles();
+                    renderIconGrid();
+                    updateDisplay();
+                    openImageModal(id); // アップロード後即座に調整モーダルを開く
+                };
+                reader.readAsDataURL(file);
+            });
+
+            uploadBtn.appendChild(fileInput);
+
+            card.appendChild(iconWrapper);
+            card.appendChild(nameLabel);
+            card.appendChild(uploadBtn);
+            grid.appendChild(card);
+        });
+    }
+
+    // 時間表示・凡例表示トグル
+    document.getElementById('toggleTimestamp').addEventListener('change', (e) => {
+        const logContent = document.getElementById('logContent');
+        if(e.target.checked) logContent.classList.add('show-timestamps');
+        else logContent.classList.remove('show-timestamps');
+    });
+
+    document.getElementById('toggleLegend').addEventListener('change', (e) => {
+        const logContent = document.getElementById('logContent');
+        if(e.target.checked) logContent.classList.add('use-legend');
+        else logContent.classList.remove('use-legend');
+    });
+
+    function updateDisplay() {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const tabCheckboxesContainer = document.getElementById('tabCheckboxes');
+        
+        // 全タブ選択UIが非表示（個別ログ）の場合は、存在する全メッセージを表示対象にする
+        let combinedChats = [];
+        if (tabCheckboxesContainer.style.display === 'none') {
+            combinedChats = [...chatMessages];
+        } else {
+            if (checkedBoxes.length === 0) {
+                document.getElementById('logContent').innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8;">表示するタブにチェックを入れてください。</div>';
+                return;
+            }
+            checkedBoxes.forEach(box => { 
+                combinedChats = combinedChats.concat(currentParsedTabs[box.value]); 
+            });
+        }
+        
+        // 元のHTMLに登場する順（index）でソートして時系列順を維持
+        combinedChats.sort((a, b) => a.index - b.index);
+        renderLog(combinedChats);
+    }
+
+    function renderLog(chats) {
+        const display = document.getElementById('logContent');
+        display.innerHTML = '';
+
+        const activeTabs = [...new Set(chats.map(c => c.tabName))];
+        const legendDiv = document.createElement('div');
+        legendDiv.className = 'tab-legend';
+        activeTabs.forEach(tabName => {
+            const tIndex = tabIndexMap[tabName];
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            const colorCircle = document.createElement('div');
+            colorCircle.className = 'legend-color';
+            colorCircle.style.backgroundColor = `var(--tab-color-${tIndex})`;
+            const label = document.createElement('span');
+            label.textContent = tabName;
+            item.appendChild(colorCircle);
+            item.appendChild(label);
+            legendDiv.appendChild(item);
+        });
+        display.appendChild(legendDiv);
+
+        function createInsertTrigger(targetIndexVal) {
+            const trigger = document.createElement('div');
+            trigger.className = 'insert-trigger';
+            trigger.addEventListener('click', (e) => {
+                showInsertMenu(e, targetIndexVal);
+            });
+            const btn = document.createElement('div');
+            btn.className = 'insert-btn';
+            btn.textContent = '＋';
+            trigger.appendChild(btn);
+            return trigger;
+        }
+
+        const firstNextIndex = chats[0] ? chats[0].index : 0;
+        display.appendChild(createInsertTrigger(firstNextIndex - 1));
+
+        chats.forEach((chat, idx) => {
+            const tabName = chat.tabName;
+            const tIndex = tabIndexMap[tabName];
+            const name = chat.name || '不明';
+            const content = chat.content || '';
+            const color = chat.color || '#333';
+            const isSystem = name === 'System';
+
+            // 挿入された画像メッセージの場合
+            if (chat.type === 'image') {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'message image-message';
+                imgDiv.style.borderLeft = `4px solid var(--tab-color-${tIndex})`;
+
+                const imgWrapper = document.createElement('div');
+                imgWrapper.className = 'inserted-image-wrapper';
+                imgWrapper.style.width = chat.width || '300px';
+
+                const img = document.createElement('img');
+                img.className = 'inserted-image inserted-image-clickable';
+                img.src = imageMap[chat.imageIdentifier] || '';
+                img.style.width = '100%';
+                img.style.height = 'auto';
+                img.style.borderRadius = '6px';
+                img.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                img.style.cursor = 'pointer';
+                img.title = 'クリックでフルサイズ表示';
+
+                const handle = document.createElement('div');
+                handle.className = 'resize-handle';
+
+                imgWrapper.appendChild(img);
+                imgWrapper.appendChild(handle);
+                imgDiv.appendChild(imgWrapper);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '🗑️';
+                deleteBtn.title = 'この画像を削除';
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm('この画像を削除しますか？')) {
+                        chatMessages = chatMessages.filter(m => m.id !== chat.id);
+                        if (currentParsedTabs[tabName]) {
+                            currentParsedTabs[tabName] = currentParsedTabs[tabName].filter(m => m.id !== chat.id);
+                        }
+                        imgDiv.remove();
+                    }
+                });
+                imgDiv.appendChild(deleteBtn);
+
+                initResizable(imgWrapper, handle, chat);
+                display.appendChild(imgDiv);
+
+                const prevIndex = chat.index;
+                const nextIndex = chats[idx + 1] ? chats[idx + 1].index : prevIndex + 1;
+                const insertIndexVal = (prevIndex + nextIndex) / 2;
+                display.appendChild(createInsertTrigger(insertIndexVal));
+                return;
+            }
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message' + (isSystem ? ' system-message' : '');
+            msgDiv.style.borderLeft = `4px solid var(--tab-color-${tIndex})`;
+
+            const tsDiv = document.createElement('div');
+            tsDiv.className = 'message-timestamp';
+            tsDiv.textContent = ''; // ココフォリアは空値
+            msgDiv.appendChild(tsDiv);
+
+            if (!isSystem) {
+                const iconWrapper = document.createElement('div');
+                iconWrapper.className = 'message-icon clickable-icon';
+                
+                const imgId = chat.imageIdentifier;
+                const iconInner = document.createElement('div');
+                
+                if (imgId && imageMap[imgId]) {
+                    iconInner.className = `icon-inner img-${imgId}`;
+                    iconWrapper.title = 'クリックで表示位置を調整 / 画像を変更';
+                    iconWrapper.addEventListener('click', () => {
+                        // もし共通デフォルト画像（char-img-...）を指しているなら、個別画像にプロモートする
+                        let targetImgId = chat.imageIdentifier;
+                        if (targetImgId.startsWith('char-img-')) {
+                            const newImgId = `msg-img-${chat.id}`;
+                            imageMap[newImgId] = imageMap[targetImgId];
+                            imagePositions[newImgId] = { ...imagePositions[targetImgId] };
+                            chat.imageIdentifier = newImgId; // メッセージの参照を個別IDに変更
+                            updateImageStyles();
+                            updateDisplay();
+                            targetImgId = newImgId;
+                        }
+                        openImageModal(targetImgId);
+                    });
+                } else {
+                    iconInner.className = 'icon-inner icon-default';
+                    iconWrapper.title = 'クリックでこの発言のみの画像（差分）を設定';
+                    
+                    // クリック時にこの発言専用の画像（表情差分など）をアップロードさせる
+                    iconWrapper.addEventListener('click', () => {
+                        const fileInput = document.createElement('input');
+                        fileInput.type = 'file';
+                        fileInput.accept = 'image/*';
+                        fileInput.style.display = 'none';
+                        fileInput.addEventListener('change', (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                const newImgId = `msg-img-${chat.id}`;
+                                imageMap[newImgId] = event.target.result;
+                                imagePositions[newImgId] = { z: 1, x: 50, y: 50 };
+                                chat.imageIdentifier = newImgId; // メッセージの画像IDを個別IDに上書き
+                                updateImageStyles();
+                                updateDisplay();
+                                openImageModal(newImgId); // 即座に位置調整モーダルを開く
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                        fileInput.click();
+                    });
+                }
+                iconWrapper.appendChild(iconInner);
+                msgDiv.appendChild(iconWrapper);
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'message-header';
+
+            const badge = document.createElement('span');
+            badge.className = 'tab-badge';
+            badge.style.backgroundColor = `var(--tab-color-${tIndex})`;
+            badge.textContent = tabName;
+            headerDiv.appendChild(badge);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'name-span';
+            if (!isSystem) nameSpan.style.color = color;
+            nameSpan.textContent = name;
+            headerDiv.appendChild(nameSpan);
+
+            const bodyDiv = document.createElement('div');
+            bodyDiv.className = 'message-body';
+            bodyDiv.textContent = content;
+
+            nameSpan.addEventListener('dblclick', (e) => {
+                const el = e.target;
+                el.setAttribute('contenteditable', 'true');
+                el.focus();
+                
+                const oldName = el.textContent.trim();
+                
+                el.addEventListener('blur', function onBlur() {
+                    el.removeAttribute('contenteditable');
+                    el.removeEventListener('blur', onBlur);
+                    
+                    const newName = el.textContent.trim();
+                    if (newName && newName !== oldName) {
+                        chat.name = newName;
+                        chat.imageIdentifier = `char-img-${newName}`;
+                        
+                        if (!characterNames.includes(newName)) {
+                            characterNames.push(newName);
+                            const id = `char-img-${newName}`;
+                            imagePositions[id] = { z: 1, x: 50, y: 50 };
+                        }
+                        
+                        const mainMsg = chatMessages.find(m => m.id === chat.id);
+                        if (mainMsg) {
+                            mainMsg.name = newName;
+                            mainMsg.imageIdentifier = chat.imageIdentifier;
+                        }
+                        
+                        updateImageStyles();
+                        renderIconGrid();
+                        updateDisplay();
+                    } else if (!newName) {
+                        el.textContent = oldName;
+                    }
+                });
+            });
+
+            bodyDiv.addEventListener('dblclick', (e) => {
+                const el = e.target;
+                el.setAttribute('contenteditable', 'true');
+                el.focus();
+                
+                const oldContent = el.textContent;
+                
+                el.addEventListener('blur', function onBlur() {
+                    el.removeAttribute('contenteditable');
+                    el.removeEventListener('blur', onBlur);
+                    
+                    const newContent = el.textContent;
+                    if (newContent !== oldContent) {
+                        chat.content = newContent;
+                        const mainMsg = chatMessages.find(m => m.id === chat.id);
+                        if (mainMsg) {
+                            mainMsg.content = newContent;
+                        }
+                    }
+                });
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.title = 'この発言を削除';
+            deleteBtn.addEventListener('click', () => { 
+                if(confirm('この発言を削除しますか？')) {
+                    chatMessages = chatMessages.filter(m => m.id !== chat.id);
+                    if (currentParsedTabs[tabName]) {
+                        currentParsedTabs[tabName] = currentParsedTabs[tabName].filter(m => m.id !== chat.id);
+                    }
+                    msgDiv.remove(); 
+                }
+            });
+
+            contentDiv.appendChild(headerDiv);
+            contentDiv.appendChild(bodyDiv);
+            msgDiv.appendChild(contentDiv);
+            msgDiv.appendChild(deleteBtn);
+            
+            display.appendChild(msgDiv);
+
+            const prevIndex = chat.index;
+            const nextIndex = chats[idx + 1] ? chats[idx + 1].index : prevIndex + 1;
+            const insertIndexVal = (prevIndex + nextIndex) / 2;
+            display.appendChild(createInsertTrigger(insertIndexVal));
+        });
+    }
+
+    // モーダル・スライダー制御
+    const modal = document.getElementById('imageModal');
+    const previewIcon = document.getElementById('modalPreviewIcon');
+    const sliderZ = document.getElementById('sliderZ');
+    const sliderX = document.getElementById('sliderX');
+    const sliderY = document.getElementById('sliderY');
+    const valZ = document.getElementById('valZ');
+    const valX = document.getElementById('valX');
+    const valY = document.getElementById('valY');
+    const modalChangeImgBtn = document.getElementById('modalChangeImgBtn');
+    const modalImageInput = document.getElementById('modalImageInput');
+
+    function openImageModal(id) {
+        editingImageId = id;
+        const pos = imagePositions[id];
+        previewIcon.className = `icon-inner img-${id}`;
+        sliderZ.value = pos.z; valZ.textContent = Number(pos.z).toFixed(1);
+        sliderX.value = pos.x; valX.textContent = pos.x;
+        sliderY.value = pos.y; valY.textContent = pos.y;
+        modal.style.display = 'flex';
+    }
+
+    function handleSliderChange() {
+        if (!editingImageId) return;
+        const z = sliderZ.value; const x = sliderX.value; const y = sliderY.value;
+        valZ.textContent = Number(z).toFixed(1); valX.textContent = x; valY.textContent = y;
+        imagePositions[editingImageId] = { z: z, x: x, y: y };
+        updateImageStyles();
+    }
+
+    sliderZ.addEventListener('input', handleSliderChange);
+    sliderX.addEventListener('input', handleSliderChange);
+    sliderY.addEventListener('input', handleSliderChange);
+
+    modalChangeImgBtn.addEventListener('click', () => {
+        modalImageInput.click();
+    });
+
+    modalImageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file || !editingImageId) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            imageMap[editingImageId] = event.target.result;
+            updateImageStyles();
+            previewIcon.className = `icon-inner img-${editingImageId}`;
+            renderIconGrid();
+            updateDisplay();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        modal.style.display = 'none'; editingImageId = null;
+    });
+
+    // 画像ドラッグリサイズロジック
+    function initResizable(wrapper, handle, chat) {
+        let startX, startWidth;
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startX = e.clientX;
+            startWidth = parseInt(document.defaultView.getComputedStyle(wrapper).width, 10);
+            
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        });
+
+        function doDrag(e) {
+            let newWidth = startWidth + (e.clientX - startX);
+            if (newWidth < 50) newWidth = 50;
+            if (newWidth > 800) newWidth = 800;
+            wrapper.style.width = `${newWidth}px`;
+            chat.width = `${newWidth}px`;
+        }
+
+        function stopDrag(e) {
+            document.documentElement.removeEventListener('mousemove', doDrag, false);
+            document.documentElement.removeEventListener('mouseup', stopDrag, false);
+        }
+    }
+
+    // 挿入ポップアップメニューの表示
+    function showInsertMenu(e, targetIndexVal) {
+        e.stopPropagation();
+        
+        const existingMenu = document.getElementById('insertMenu');
+        if (existingMenu) existingMenu.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'insertMenu';
+        
+        menu.style.position = 'absolute';
+        menu.style.left = `${e.pageX}px`;
+        menu.style.top = `${e.pageY}px`;
+        menu.style.background = 'var(--card-bg)';
+        menu.style.border = '1px solid var(--border-color)';
+        menu.style.borderRadius = '8px';
+        menu.style.boxShadow = '0 10px 25px rgba(0,0,0,0.4)';
+        menu.style.padding = '6px 0';
+        menu.style.zIndex = '1000';
+        menu.style.display = 'flex';
+        menu.style.flexDirection = 'column';
+        menu.style.minWidth = '130px';
+
+        const btnSpeech = document.createElement('button');
+        btnSpeech.style.background = 'transparent';
+        btnSpeech.style.color = 'var(--text-color)';
+        btnSpeech.style.border = 'none';
+        btnSpeech.style.padding = '8px 16px';
+        btnSpeech.style.fontSize = '13px';
+        btnSpeech.style.textAlign = 'left';
+        btnSpeech.style.cursor = 'pointer';
+        btnSpeech.style.fontWeight = '500';
+        btnSpeech.innerHTML = '📝 発言を追加';
+        btnSpeech.addEventListener('mouseover', () => btnSpeech.style.background = 'rgba(255,255,255,0.05)');
+        btnSpeech.addEventListener('mouseout', () => btnSpeech.style.background = 'transparent');
+        btnSpeech.addEventListener('click', () => {
+            insertSpeech(targetIndexVal);
+            menu.remove();
+        });
+
+        const btnImage = document.createElement('button');
+        btnImage.style.background = 'transparent';
+        btnImage.style.color = 'var(--text-color)';
+        btnImage.style.border = 'none';
+        btnImage.style.padding = '8px 16px';
+        btnImage.style.fontSize = '13px';
+        btnImage.style.textAlign = 'left';
+        btnImage.style.cursor = 'pointer';
+        btnImage.style.fontWeight = '500';
+        btnImage.innerHTML = '🖼️ 画像を挿入';
+        btnImage.addEventListener('mouseover', () => btnImage.style.background = 'rgba(255,255,255,0.05)');
+        btnImage.addEventListener('mouseout', () => btnImage.style.background = 'transparent');
+        btnImage.addEventListener('click', () => {
+            insertImage(targetIndexVal);
+            menu.remove();
+        });
+
+        menu.appendChild(btnSpeech);
+        menu.appendChild(btnImage);
+        document.body.appendChild(menu);
+
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu() {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            });
+        }, 0);
+    }
+
+    // 新規発言の挿入
+    function insertSpeech(targetIndexVal) {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const activeTab = checkedBoxes[0] ? checkedBoxes[0].value : 'ログ';
+        
+        const newMsg = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            index: targetIndexVal,
+            tabName: activeTab,
+            name: '新規キャラクター',
+            content: '発言内容を入力',
+            color: '#333333',
+            imageIdentifier: 'char-img-新規キャラクター'
+        };
+
+        chatMessages.push(newMsg);
+        if (currentParsedTabs[activeTab]) {
+            currentParsedTabs[activeTab].push(newMsg);
+        }
+
+        if (!characterNames.includes('新規キャラクター')) {
+            characterNames.push('新規キャラクター');
+            const id = 'char-img-新規キャラクター';
+            imagePositions[id] = { z: 1, x: 50, y: 50 };
+        }
+
+        updateImageStyles();
+        renderIconGrid();
+        updateDisplay();
+    }
+
+    // 画像挿入
+    function insertImage(targetIndexVal) {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const activeTab = checkedBoxes[0] ? checkedBoxes[0].value : 'ログ';
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgId = `insert-img-${Date.now()}`;
+                imageMap[imgId] = event.target.result;
+                imagePositions[imgId] = { z: 1, x: 50, y: 50 };
+
+                const newMsg = {
+                    id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                    index: targetIndexVal,
+                    type: 'image',
+                    tabName: activeTab,
+                    imageIdentifier: imgId,
+                    width: '300px'
+                };
+
+                chatMessages.push(newMsg);
+                if (currentParsedTabs[activeTab]) {
+                    currentParsedTabs[activeTab].push(newMsg);
+                }
+
+                updateImageStyles();
+                updateDisplay();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        fileInput.click();
+    }
+
+    // クリップボードにコピー
+    document.getElementById('copyBtn').addEventListener('click', () => {
+        let textToCopy = '';
+        const useLegend = document.getElementById('toggleLegend').checked;
+        
+        if (useLegend) {
+            const activeTabs = [...new Set(Array.from(document.querySelectorAll('#tabCheckboxes input:checked')).map(cb => cb.value))];
+            textToCopy += `【表示タブ：${activeTabs.join('、')}】\n\n`;
+        }
+
+        const messages = document.querySelectorAll('#logContent .message');
+        messages.forEach(msg => {
+            const isSystem = msg.classList.contains('system-message');
+            const badgeEl = msg.querySelector('.tab-badge');
+            const nameEl = msg.querySelector('.name-span');
+            const bodyEl = msg.querySelector('.message-body');
+            if (!badgeEl || !nameEl || !bodyEl) return;
+
+            const badgeText = badgeEl.innerText;
+            const nameText = nameEl.innerText;
+            const bodyText = bodyEl.innerText;
+
+            const badgeStr = useLegend ? '' : `【${badgeText}】`;
+            if (isSystem) { 
+                textToCopy += `${badgeStr}[System] ${nameText}\n${bodyText}\n\n`; 
+            } else { 
+                textToCopy += `${badgeStr}■${nameText}\n${bodyText}\n\n`; 
+            }
+        });
+        navigator.clipboard.writeText(textToCopy).then(() => { alert('ログをクリップボードにコピーしました！'); })
+        .catch(err => alert('コピーに失敗しました。'));
+    });
+
+    // HTMLの保存
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const tabNames = checkedBoxes.map(b => b.value).join('_');
+        const filename = tabNames ? `ccfolia_${tabNames}_log.html` : 'ccfolia_log.html';
+
+        const clone = document.getElementById('logContent').cloneNode(true);
+        clone.querySelectorAll('.delete-btn').forEach(el => el.remove());
+        clone.querySelectorAll('.resize-handle').forEach(el => el.remove());
+        clone.querySelectorAll('.insert-trigger').forEach(el => el.remove());
+        clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        
+        clone.querySelectorAll('.clickable-icon').forEach(el => {
+            el.classList.remove('clickable-icon');
+            el.classList.add('export-clickable');
+            el.title = "クリックで元画像をフルサイズ表示";
+        });
+        
+        const displayHtml = clone.innerHTML;
+        const dynamicStyles = document.getElementById('dynamic-image-styles').textContent;
+        const useLegend = document.getElementById('toggleLegend').checked;
+        
+        let rootStylesContent = '';
+        Object.keys(tabIndexMap).forEach(name => {
+            const idx = tabIndexMap[name];
+            const color = document.documentElement.style.getPropertyValue(`--tab-color-${idx}`).trim();
+            rootStylesContent += `--tab-color-${idx}: ${color}; `;
+        });
+        
+        const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ココフォリアログ: ${tabNames || '整形ログ'}</title>
+    <style>
+        :root { ${rootStylesContent} }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f4f6f9; padding: 20px; }
+        .log-container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .title { border-bottom: 2px solid #6366f1; padding-bottom: 10px; color: #6366f1; margin-top: 0; font-family: sans-serif; }
+        
+        .tab-legend { display: ${useLegend ? 'flex' : 'none'}; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; padding: 12px 15px; background: #fdfdfd; border: 1px solid #e2e8f0; border-radius: 4px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #4a5568; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+        .use-legend .tab-badge { display: none; }
+
+        .message { display: flex; align-items: flex-start; margin-bottom: 16px; line-height: 1.6; position: relative; padding-left: 10px; border-radius: 2px; }
+        .message-timestamp { display: none; }
+        .message-icon { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; margin-right: 12px; background-color: #e2e8f0; flex-shrink: 0; border: 1px solid #cbd5e0; position: relative; }
+        .icon-inner { width: 100%; height: 100%; background-size: cover; background-repeat: no-repeat; background-position: var(--pos-x, 50%) var(--pos-y, 50%); transform-origin: var(--pos-x, 50%) var(--pos-y, 50%); transform: scale(var(--zoom, 1)); }
+        .icon-default { background-image: url('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'); }
+        
+        .export-clickable { cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .export-clickable:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--primary-color); }
+
+        .message-content { flex-grow: 1; }
+        .message-header { font-weight: bold; font-size: 0.95em; margin-bottom: 2px; display: flex; align-items: center; flex-wrap: wrap; }
+        .tab-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; color: #fff; font-size: 0.75em; margin-right: 8px; font-weight: normal; text-shadow: 0 1px 1px rgba(0,0,0,0.2); }
+        .message-body { white-space: pre-wrap; color: #222; }
+        
+        .system-message { background-color: #f0f4f8; padding: 10px 12px; margin-left: 56px; border-radius: 4px; }
+        .system-message .message-icon { display: none; }
+        .system-message .message-header { color: #718096 !important; font-size: 0.85em; }
+        .system-message .message-body { color: #4a5568; font-size: 0.9em; }
+
+        /* 挿入画像用のスタイル */
+        .image-message { display: flex; align-items: flex-start; margin-bottom: 16px; padding-left: 10px; position: relative; }
+        .inserted-image-wrapper { margin-left: 56px; display: inline-block; }
+
+        /* 元画像表示用Lightbox */
+        .lightbox-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: pointer; }
+        .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        
+        ${dynamicStyles}
+    </style>
+</head>
+<body>
+    <div id="logContent" class="log-container ${useLegend ? 'use-legend' : ''}">
+        <h1 class="title">ココフォリアログ: ${tabNames || '整形ログ'}</h1>
+        ${displayHtml}
+    </div>
+
+    <div id="lightbox" class="lightbox-overlay">
+        <img id="lightboxImg" class="lightbox-img">
+    </div>
+
+    <script>
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        document.querySelectorAll('.export-clickable').forEach(icon => {
+            icon.addEventListener('click', () => {
+                const inner = icon.querySelector('.icon-inner');
+                if(inner) {
+                    const bg = getComputedStyle(inner).backgroundImage;
+                    if(bg && bg !== 'none') {
+                        const url = bg.slice(4, -1).replace(/["']/g, "");
+                        lightboxImg.src = url;
+                        lightbox.style.display = 'flex';
+                    }
+                }
+            });
+        });
+        document.querySelectorAll('.inserted-image-clickable').forEach(img => {
+            img.addEventListener('click', () => {
+                lightboxImg.src = img.src;
+                lightbox.style.display = 'flex';
+            });
+        });
+        lightbox.addEventListener('click', () => { lightbox.style.display = 'none'; });
+    <\/script>
+</body>
+</html>`;
+
+        const blob = new Blob([htmlTemplate], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    // ツール自身をダウンロード
+    document.getElementById('downloadToolSelfBtn').addEventListener('click', () => {
+        fetch(window.location.href)
+            .then(response => response.text())
+            .then(html => {
+                const blob = new Blob([html], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ccfolia_log_formatter.html';
+                a.click();
+            })
+            .catch(err => {
+                const html = document.documentElement.outerHTML;
+                const blob = new Blob([html], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ccfolia_log_formatter.html';
+                a.click();
+            });
+    });
+</script>
+</body>
+</html>
