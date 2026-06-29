@@ -796,6 +796,9 @@
     <header>
         <h1>🎲 ココフォリア ログ整形ツール</h1>
         <p class="subtitle">ココフォリアのHTMLログを読み込み、立ち絵アイコンや表情差分を自由に設定して出力します</p>
+        <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px;">
+            <button id="downloadToolSelfBtn" class="btn-copy" style="background-color: #3b4b66; font-size: 12px; padding: 6px 12px; border-radius: 6px;">💻 ツール本体(HTML)を保存</button>
+        </div>
     </header>
     
     <div class="upload-section" onclick="document.getElementById('htmlInput').click();">
@@ -1836,6 +1839,27 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    });
+
+    // ツール自身をダウンロード
+    document.getElementById('downloadToolSelfBtn').addEventListener('click', () => {
+        fetch(window.location.href)
+            .then(response => response.text())
+            .then(html => {
+                const blob = new Blob([html], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ccfolia_log_formatter.html';
+                a.click();
+            })
+            .catch(err => {
+                const html = document.documentElement.outerHTML;
+                const blob = new Blob([html], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ccfolia_log_formatter.html';
+                a.click();
+            });
     });
 </script>
 </body>
