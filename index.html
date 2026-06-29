@@ -704,6 +704,89 @@
             font-weight: 600;
             justify-content: center;
         }
+        
+        /* ログ間挿入トリガー */
+        .insert-trigger {
+            height: 12px;
+            margin: -6px 0;
+            position: relative;
+            cursor: pointer;
+            z-index: 10;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+        }
+        .insert-trigger::after {
+            content: "";
+            position: absolute;
+            left: 56px;
+            right: 40px;
+            height: 2px;
+            background: var(--primary-gradient);
+            transform: scaleX(0);
+            transition: transform 0.2s;
+        }
+        .insert-trigger .insert-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+            transform: scale(0);
+            transition: transform 0.2s;
+        }
+        .insert-trigger:hover {
+            height: 28px;
+            margin: -14px 0;
+            opacity: 1;
+        }
+        .insert-trigger:hover::after {
+            transform: scaleX(1);
+        }
+        .insert-trigger:hover .insert-btn {
+            transform: scale(1);
+        }
+
+        /* 挿入画像メッセージ */
+        .image-message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            padding-left: 10px;
+            padding-right: 40px;
+            position: relative;
+        }
+        .inserted-image-wrapper {
+            margin-left: 56px;
+            position: relative;
+            display: inline-block;
+        }
+        .inserted-image-wrapper:hover .resize-handle {
+            opacity: 1;
+        }
+        .resize-handle {
+            width: 14px;
+            height: 14px;
+            background: var(--primary-gradient);
+            position: absolute;
+            right: -6px;
+            bottom: -6px;
+            cursor: se-resize;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
     </style>
     <style id="dynamic-image-styles"></style>
 </head>
@@ -1122,13 +1205,81 @@
         });
         display.appendChild(legendDiv);
 
-        chats.forEach(chat => {
+        function createInsertTrigger(targetIndexVal) {
+            const trigger = document.createElement('div');
+            trigger.className = 'insert-trigger';
+            trigger.addEventListener('click', (e) => {
+                showInsertMenu(e, targetIndexVal);
+            });
+            const btn = document.createElement('div');
+            btn.className = 'insert-btn';
+            btn.textContent = '＋';
+            trigger.appendChild(btn);
+            return trigger;
+        }
+
+        const firstNextIndex = chats[0] ? chats[0].index : 0;
+        display.appendChild(createInsertTrigger(firstNextIndex - 1));
+
+        chats.forEach((chat, idx) => {
             const tabName = chat.tabName;
             const tIndex = tabIndexMap[tabName];
             const name = chat.name || '不明';
             const content = chat.content || '';
             const color = chat.color || '#333';
             const isSystem = name === 'System';
+
+            // 挿入された画像メッセージの場合
+            if (chat.type === 'image') {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'message image-message';
+                imgDiv.style.borderLeft = `4px solid var(--tab-color-${tIndex})`;
+
+                const imgWrapper = document.createElement('div');
+                imgWrapper.className = 'inserted-image-wrapper';
+                imgWrapper.style.width = chat.width || '300px';
+
+                const img = document.createElement('img');
+                img.className = 'inserted-image inserted-image-clickable';
+                img.src = imageMap[chat.imageIdentifier] || '';
+                img.style.width = '100%';
+                img.style.height = 'auto';
+                img.style.borderRadius = '6px';
+                img.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                img.style.cursor = 'pointer';
+                img.title = 'クリックでフルサイズ表示';
+
+                const handle = document.createElement('div');
+                handle.className = 'resize-handle';
+
+                imgWrapper.appendChild(img);
+                imgWrapper.appendChild(handle);
+                imgDiv.appendChild(imgWrapper);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '🗑️';
+                deleteBtn.title = 'この画像を削除';
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm('この画像を削除しますか？')) {
+                        chatMessages = chatMessages.filter(m => m.id !== chat.id);
+                        if (currentParsedTabs[tabName]) {
+                            currentParsedTabs[tabName] = currentParsedTabs[tabName].filter(m => m.id !== chat.id);
+                        }
+                        imgDiv.remove();
+                    }
+                });
+                imgDiv.appendChild(deleteBtn);
+
+                initResizable(imgWrapper, handle, chat);
+                display.appendChild(imgDiv);
+
+                const prevIndex = chat.index;
+                const nextIndex = chats[idx + 1] ? chats[idx + 1].index : prevIndex + 1;
+                const insertIndexVal = (prevIndex + nextIndex) / 2;
+                display.appendChild(createInsertTrigger(insertIndexVal));
+                return;
+            }
 
             const msgDiv = document.createElement('div');
             msgDiv.className = 'message' + (isSystem ? ' system-message' : '');
@@ -1296,6 +1447,11 @@
             msgDiv.appendChild(deleteBtn);
             
             display.appendChild(msgDiv);
+
+            const prevIndex = chat.index;
+            const nextIndex = chats[idx + 1] ? chats[idx + 1].index : prevIndex + 1;
+            const insertIndexVal = (prevIndex + nextIndex) / 2;
+            display.appendChild(createInsertTrigger(insertIndexVal));
         });
     }
 
@@ -1355,7 +1511,175 @@
         modal.style.display = 'none'; editingImageId = null;
     });
 
+    // 画像ドラッグリサイズロジック
+    function initResizable(wrapper, handle, chat) {
+        let startX, startWidth;
 
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startX = e.clientX;
+            startWidth = parseInt(document.defaultView.getComputedStyle(wrapper).width, 10);
+            
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        });
+
+        function doDrag(e) {
+            let newWidth = startWidth + (e.clientX - startX);
+            if (newWidth < 50) newWidth = 50;
+            if (newWidth > 800) newWidth = 800;
+            wrapper.style.width = `${newWidth}px`;
+            chat.width = `${newWidth}px`;
+        }
+
+        function stopDrag(e) {
+            document.documentElement.removeEventListener('mousemove', doDrag, false);
+            document.documentElement.removeEventListener('mouseup', stopDrag, false);
+        }
+    }
+
+    // 挿入ポップアップメニューの表示
+    function showInsertMenu(e, targetIndexVal) {
+        e.stopPropagation();
+        
+        const existingMenu = document.getElementById('insertMenu');
+        if (existingMenu) existingMenu.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'insertMenu';
+        
+        menu.style.position = 'absolute';
+        menu.style.left = `${e.pageX}px`;
+        menu.style.top = `${e.pageY}px`;
+        menu.style.background = 'var(--card-bg)';
+        menu.style.border = '1px solid var(--border-color)';
+        menu.style.borderRadius = '8px';
+        menu.style.boxShadow = '0 10px 25px rgba(0,0,0,0.4)';
+        menu.style.padding = '6px 0';
+        menu.style.zIndex = '1000';
+        menu.style.display = 'flex';
+        menu.style.flexDirection = 'column';
+        menu.style.minWidth = '130px';
+
+        const btnSpeech = document.createElement('button');
+        btnSpeech.style.background = 'transparent';
+        btnSpeech.style.color = 'var(--text-color)';
+        btnSpeech.style.border = 'none';
+        btnSpeech.style.padding = '8px 16px';
+        btnSpeech.style.fontSize = '13px';
+        btnSpeech.style.textAlign = 'left';
+        btnSpeech.style.cursor = 'pointer';
+        btnSpeech.style.fontWeight = '500';
+        btnSpeech.innerHTML = '📝 発言を追加';
+        btnSpeech.addEventListener('mouseover', () => btnSpeech.style.background = 'rgba(255,255,255,0.05)');
+        btnSpeech.addEventListener('mouseout', () => btnSpeech.style.background = 'transparent');
+        btnSpeech.addEventListener('click', () => {
+            insertSpeech(targetIndexVal);
+            menu.remove();
+        });
+
+        const btnImage = document.createElement('button');
+        btnImage.style.background = 'transparent';
+        btnImage.style.color = 'var(--text-color)';
+        btnImage.style.border = 'none';
+        btnImage.style.padding = '8px 16px';
+        btnImage.style.fontSize = '13px';
+        btnImage.style.textAlign = 'left';
+        btnImage.style.cursor = 'pointer';
+        btnImage.style.fontWeight = '500';
+        btnImage.innerHTML = '🖼️ 画像を挿入';
+        btnImage.addEventListener('mouseover', () => btnImage.style.background = 'rgba(255,255,255,0.05)');
+        btnImage.addEventListener('mouseout', () => btnImage.style.background = 'transparent');
+        btnImage.addEventListener('click', () => {
+            insertImage(targetIndexVal);
+            menu.remove();
+        });
+
+        menu.appendChild(btnSpeech);
+        menu.appendChild(btnImage);
+        document.body.appendChild(menu);
+
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu() {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            });
+        }, 0);
+    }
+
+    // 新規発言の挿入
+    function insertSpeech(targetIndexVal) {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const activeTab = checkedBoxes[0] ? checkedBoxes[0].value : 'ログ';
+        
+        const newMsg = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            index: targetIndexVal,
+            tabName: activeTab,
+            name: '新規キャラクター',
+            content: '発言内容を入力',
+            color: '#333333',
+            imageIdentifier: 'char-img-新規キャラクター'
+        };
+
+        chatMessages.push(newMsg);
+        if (currentParsedTabs[activeTab]) {
+            currentParsedTabs[activeTab].push(newMsg);
+        }
+
+        if (!characterNames.includes('新規キャラクター')) {
+            characterNames.push('新規キャラクター');
+            const id = 'char-img-新規キャラクター';
+            imagePositions[id] = { z: 1, x: 50, y: 50 };
+        }
+
+        updateImageStyles();
+        renderIconGrid();
+        updateDisplay();
+    }
+
+    // 画像挿入
+    function insertImage(targetIndexVal) {
+        const checkedBoxes = Array.from(document.querySelectorAll('#tabCheckboxes input:checked'));
+        const activeTab = checkedBoxes[0] ? checkedBoxes[0].value : 'ログ';
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const imgId = `insert-img-${Date.now()}`;
+                imageMap[imgId] = event.target.result;
+                imagePositions[imgId] = { z: 1, x: 50, y: 50 };
+
+                const newMsg = {
+                    id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                    index: targetIndexVal,
+                    type: 'image',
+                    tabName: activeTab,
+                    imageIdentifier: imgId,
+                    width: '300px'
+                };
+
+                chatMessages.push(newMsg);
+                if (currentParsedTabs[activeTab]) {
+                    currentParsedTabs[activeTab].push(newMsg);
+                }
+
+                updateImageStyles();
+                updateDisplay();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        fileInput.click();
+    }
 
     // クリップボードにコピー
     document.getElementById('copyBtn').addEventListener('click', () => {
@@ -1398,6 +1722,8 @@
 
         const clone = document.getElementById('logContent').cloneNode(true);
         clone.querySelectorAll('.delete-btn').forEach(el => el.remove());
+        clone.querySelectorAll('.resize-handle').forEach(el => el.remove());
+        clone.querySelectorAll('.insert-trigger').forEach(el => el.remove());
         clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
         
         clone.querySelectorAll('.clickable-icon').forEach(el => {
@@ -1453,6 +1779,10 @@
         .system-message .message-header { color: #718096 !important; font-size: 0.85em; }
         .system-message .message-body { color: #4a5568; font-size: 0.9em; }
 
+        /* 挿入画像用のスタイル */
+        .image-message { display: flex; align-items: flex-start; margin-bottom: 16px; padding-left: 10px; position: relative; }
+        .inserted-image-wrapper { margin-left: 56px; display: inline-block; }
+
         /* 元画像表示用Lightbox */
         .lightbox-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: pointer; }
         .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
@@ -1484,6 +1814,12 @@
                         lightbox.style.display = 'flex';
                     }
                 }
+            });
+        });
+        document.querySelectorAll('.inserted-image-clickable').forEach(img => {
+            img.addEventListener('click', () => {
+                lightboxImg.src = img.src;
+                lightbox.style.display = 'flex';
             });
         });
         lightbox.addEventListener('click', () => { lightbox.style.display = 'none'; });
